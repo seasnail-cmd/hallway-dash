@@ -67,3 +67,12 @@ body {
 }
 
 .screen.hidden { display: none; }
+
+#mute-btn {
+  border: none;
+  background: transparent;
+  font-size: 18px;
+  cursor: pointer;
+  color: #F4F6FB;
+  padding: 0;
+}
