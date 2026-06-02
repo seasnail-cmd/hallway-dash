@@ -6,12 +6,12 @@ const W = canvas.width;   // 960
 const H = canvas.height;  // 540
 
 // ── Layout Constants ──────────────────────────────────────────────────────────
-const HUD_H    = 60;
+const HUD_H    = 78;
 const PLAY_TOP = HUD_H;
-const PLAY_H   = H - HUD_H;          // 480
-const LANE_H   = PLAY_H / 3;         // 160
+const PLAY_H   = H - HUD_H;          // 462
+const LANE_H   = PLAY_H / 3;         // 154
 const LANE_CY  = [0, 1, 2].map(i => PLAY_TOP + LANE_H * i + LANE_H / 2);
-// LANE_CY = [140, 300, 460]
+// LANE_CY ≈ [155, 309, 463]
 
 // ── Player ───────────────────────────────────────────────────────────────────
 const player = {
@@ -25,15 +25,15 @@ const player = {
 // ── Colors ───────────────────────────────────────────────────────────────────
 const C = {
   hudBg:       '#0F1624',
-  farWall:     '#1B2230',
-  floorA:      '#2A3142',
-  floorB:      '#313A4E',
-  grout:       '#3A4660',
-  lockerBody:  '#243044',
+  farWall:     '#1A212E',
+  floorA:      '#2F394C',
+  floorB:      '#39455C',
+  grout:       '#36415A',
+  lockerBody:  '#2A3548',
   lockerMint:  '#34D399',
-  lockerAmber: '#F59E0B',
+  lockerAmber: '#FACC15',
   lockerBlue:  '#60A5FA',
-  baseboard:   '#161C28',
+  baseboard:   '#141A24',
   playerBody:  '#2563EB',
   playerHead:  '#F5CBA7',
   playerHair:  '#3D2B1F',
@@ -54,23 +54,13 @@ function roundRect(x, y, w, h, r) {
 }
 
 // ── Scene Constants ───────────────────────────────────────────────────────────
-const WALL_H  = 36;
-const FLOOR_Y = PLAY_TOP + WALL_H;   // 96
-const BASE_Y  = H - 16;              // 524
-const TILE_W  = 80;
-const TILE_H  = 40;
+const FLOOR_Y  = PLAY_TOP;  // floor starts immediately below the HUD (78)
+const BASE_Y   = H - 16;    // 524
+const TILE_W   = 80;
+const TILE_H   = 40;
+const WIN_TIME = 60;
 
-const PROP_DEFS = [
-  { type: 'lockers', w: 88  },
-  { type: 'door',    w: 50  },
-  { type: 'board',   w: 60  },
-  { type: 'exit',    w: 50  },
-  { type: 'clock',   w: 40  },
-];
-const PROP_UNIT = PROP_DEFS.reduce((s, p) => s + p.w, 0); // 288
-
-let wallOffset = 0;
-let runTimer   = 0;
+let runTimer = 0;
 
 function drawSpriteShadow(cx, bottomY, rx, ry) {
   ctx.save();
@@ -90,119 +80,18 @@ function drawHUD() {
   ctx.fillRect(0, HUD_H - 1, W, 1);
 }
 
-// ── Draw: Wall Props ──────────────────────────────────────────────────────────
-function drawWallProp(type, px, wy) {
-  const mid = wy + WALL_H / 2;
-  if (type === 'lockers') {
-    const lw = 24, lh = WALL_H - 6, gap = 4;
-    const accents = [C.lockerMint, C.lockerAmber, C.lockerBlue];
-    for (let i = 0; i < 3; i++) {
-      const lx = px + 4 + i * (lw + gap);
-      ctx.fillStyle = C.lockerBody;
-      roundRect(lx, wy + 3, lw, lh, 2);
-      ctx.fill();
-      ctx.fillStyle = accents[i];
-      ctx.fillRect(lx, wy + 3, 3, lh);
-      ctx.fillStyle = 'rgba(0,0,0,0.3)';
-      for (let v = 5; v < lh - 3; v += 6) {
-        ctx.fillRect(lx + 5, wy + 3 + v, lw - 7, 1);
-      }
-    }
-  } else if (type === 'door') {
-    ctx.fillStyle = '#111A28';
-    ctx.fillRect(px + 6, wy + 1, 30, WALL_H - 1);
-    ctx.fillStyle = '#1A3448';
-    ctx.fillRect(px + 12, wy + 5, 12, 10);
-    ctx.fillStyle = C.lockerAmber;
-    ctx.fillRect(px + 30, wy + 18, 5, 6);
-  } else if (type === 'board') {
-    ctx.fillStyle = '#2D1F0E';
-    ctx.fillRect(px + 6, wy + 3, 40, WALL_H - 6);
-    ctx.save();
-    ctx.globalAlpha *= 0.85;
-    const papers = [
-      { dx: 4,  dy: 3,  w: 10, h: 8,  c: '#EF4444' },
-      { dx: 16, dy: 2,  w: 10, h: 7,  c: '#34D399' },
-      { dx: 27, dy: 6,  w: 8,  h: 10, c: '#60A5FA' },
-      { dx: 8,  dy: 14, w: 12, h: 7,  c: '#F59E0B' },
-    ];
-    for (const p of papers) {
-      ctx.fillStyle = p.c;
-      ctx.fillRect(px + 6 + p.dx, wy + 3 + p.dy, p.w, p.h);
-    }
-    ctx.restore();
-  } else if (type === 'exit') {
-    ctx.fillStyle = '#064E3B';
-    roundRect(px + 5, mid - 9, 36, 16, 3);
-    ctx.fill();
-    ctx.save();
-    ctx.fillStyle = '#34D399';
-    ctx.font = 'bold 9px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('EXIT', px + 23, mid);
-    ctx.restore();
-  } else if (type === 'clock') {
-    ctx.save();
-    const r = 13, clkX = px + 12;
-    ctx.fillStyle = '#1E293B';
-    ctx.beginPath();
-    ctx.arc(clkX, mid, r, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = '#4A5568';
-    ctx.lineWidth = 2;
-    ctx.setLineDash([]);
-    ctx.stroke();
-    ctx.strokeStyle = '#94A3B8';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(clkX, mid);
-    ctx.lineTo(clkX + Math.cos(-1.2) * 7, mid + Math.sin(-1.2) * 7);
-    ctx.stroke();
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(clkX, mid);
-    ctx.lineTo(clkX + Math.cos(-0.4) * 10, mid + Math.sin(-0.4) * 10);
-    ctx.stroke();
-    ctx.restore();
-  }
-}
-
-function drawWallProps() {
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(0, PLAY_TOP, W, WALL_H);
-  ctx.clip();
-  const offset = wallOffset % PROP_UNIT;
-  for (let cycle = -1; cycle <= Math.ceil(W / PROP_UNIT) + 1; cycle++) {
-    let px = cycle * PROP_UNIT - offset;
-    for (const def of PROP_DEFS) {
-      drawWallProp(def.type, px, PLAY_TOP);
-      px += def.w;
-    }
-  }
-  ctx.restore();
-}
-
 // ── Draw: Hallway Background ──────────────────────────────────────────────────
 function drawBackground() {
-  // Far wall
-  ctx.fillStyle = C.farWall;
-  ctx.fillRect(0, PLAY_TOP, W, WALL_H);
-  drawWallProps();
-
-  // Floor tiles — checkerboard, vertical seams scroll left with tickOffset
-  const scrollX = tickOffset % TILE_W;
-  const numCols = Math.ceil(W / TILE_W) + 2;
+  // Static floor tiles — no scroll offset, motion conveyed by obstacles
+  const numCols = Math.ceil(W / TILE_W) + 1;
   const numRows = Math.ceil((BASE_Y - FLOOR_Y) / TILE_H) + 1;
   for (let row = 0; row < numRows; row++) {
-    const ty = FLOOR_Y + row * TILE_H;
+    const ty    = FLOOR_Y + row * TILE_H;
     if (ty >= BASE_Y) break;
     const tileH = Math.min(TILE_H, BASE_Y - ty);
     for (let col = 0; col < numCols; col++) {
-      const tx = col * TILE_W - scrollX - TILE_W;
       ctx.fillStyle = (row + col) % 2 === 0 ? C.floorA : C.floorB;
-      ctx.fillRect(tx, ty, TILE_W, tileH);
+      ctx.fillRect(col * TILE_W, ty, TILE_W, tileH);
     }
   }
 
@@ -210,8 +99,8 @@ function drawBackground() {
   ctx.strokeStyle = C.grout;
   ctx.lineWidth = 1;
   ctx.setLineDash([]);
-  for (let col = 0; col < numCols; col++) {
-    const gx = col * TILE_W - scrollX - TILE_W;
+  for (let col = 0; col <= numCols; col++) {
+    const gx = col * TILE_W;
     ctx.beginPath();
     ctx.moveTo(gx, FLOOR_Y);
     ctx.lineTo(gx, BASE_Y);
@@ -226,7 +115,7 @@ function drawBackground() {
     ctx.stroke();
   }
 
-  // Lane dividers — solid, slightly more visible than tile grout
+  // Lane dividers
   ctx.strokeStyle = '#3F4F6F';
   ctx.lineWidth = 2;
   for (let i = 1; i < 3; i++) {
@@ -242,26 +131,6 @@ function drawBackground() {
   ctx.fillRect(0, BASE_Y, W, H - BASE_Y);
   ctx.fillStyle = 'rgba(255,255,255,0.06)';
   ctx.fillRect(0, BASE_Y, W, 1);
-
-  // Vignette — top & bottom
-  let grad = ctx.createLinearGradient(0, PLAY_TOP, 0, PLAY_TOP + 48);
-  grad.addColorStop(0, 'rgba(0,0,0,0.55)');
-  grad.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, PLAY_TOP, W, 48);
-
-  grad = ctx.createLinearGradient(0, BASE_Y - 40, 0, BASE_Y);
-  grad.addColorStop(0, 'rgba(0,0,0,0)');
-  grad.addColorStop(1, 'rgba(0,0,0,0.45)');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, BASE_Y - 40, W, 40);
-
-  // Distance haze — right edge, hallway recedes where obstacles spawn
-  grad = ctx.createLinearGradient(W - 120, 0, W, 0);
-  grad.addColorStop(0, 'rgba(0,0,0,0)');
-  grad.addColorStop(1, 'rgba(0,0,0,0.5)');
-  ctx.fillStyle = grad;
-  ctx.fillRect(W - 120, PLAY_TOP, 120, PLAY_H);
 }
 
 // ── Draw: Player ──────────────────────────────────────────────────────────────
@@ -278,62 +147,175 @@ function drawPlayer(p) {
     ctx.globalAlpha = 0.65 + 0.35 * Math.sin(performance.now() * Math.PI / 100);
   }
 
-  // Ground shadow
-  drawSpriteShadow(cx, cy + p.h / 2 - 4, 18, 5);
+  // Ground shadow (slightly larger for detailed sprite)
+  drawSpriteShadow(cx, cy + p.h / 2 - 2, 22, 6);
 
-  // Backpack (behind body)
+  // ── Backpack (behind body, right side) ───────────────────────────────────
   ctx.fillStyle = C.playerPack;
-  roundRect(cx + 8, cy - 18, 14, 32, 4);
+  roundRect(cx + 10, cy - 20, 13, 32, 4);
   ctx.fill();
   ctx.fillStyle = 'rgba(255,255,255,0.08)';
-  roundRect(cx + 8, cy - 18, 14, 7, 4);
+  roundRect(cx + 10, cy - 20, 13, 6, 4);
   ctx.fill();
-
-  // Backpack strap
   ctx.strokeStyle = '#1E40AF';
   ctx.lineWidth = 2;
   ctx.setLineDash([]);
   ctx.beginPath();
-  ctx.moveTo(cx + 9, cy - 14);
-  ctx.lineTo(cx + 3, cy - 2);
+  ctx.moveTo(cx + 11, cy - 16);
+  ctx.lineTo(cx + 4, cy);
   ctx.stroke();
 
-  // Body
-  ctx.fillStyle = C.playerBody;
-  roundRect(cx - 18, cy - 18, 36, 36, 6);
-  ctx.fill();
-  ctx.fillStyle = 'rgba(255,255,255,0.13)';
-  roundRect(cx - 18, cy - 18, 36, 9, 6);
-  ctx.fill();
+  // ── Back arm (left arm, behind torso — darker) ────────────────────────────
+  ctx.strokeStyle = '#1741A0';
+  ctx.lineWidth = 7;
+  ctx.lineCap = 'round';
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.moveTo(cx - 12, cy - 16);
+  // cross-pattern: back arm goes backward when left/front leg goes forward
+  ctx.lineTo(cx - 12 - swing * 0.55, cy + 6);
+  ctx.stroke();
 
-  // Head
+  // ── Hoodie torso ──────────────────────────────────────────────────────────
+  ctx.fillStyle = C.playerBody;
+  roundRect(cx - 16, cy - 22, 32, 40, 7);
+  ctx.fill();
+  // Shading gradient: bright chest → dark bottom
+  const bodyGrad = ctx.createLinearGradient(cx, cy - 22, cx, cy + 18);
+  bodyGrad.addColorStop(0,    'rgba(255,255,255,0.16)');
+  bodyGrad.addColorStop(0.35, 'rgba(255,255,255,0.03)');
+  bodyGrad.addColorStop(1,    'rgba(0,0,0,0.22)');
+  ctx.fillStyle = bodyGrad;
+  roundRect(cx - 16, cy - 22, 32, 40, 7);
+  ctx.fill();
+  // Crew-neck collar
+  ctx.strokeStyle = '#1E40AF';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.moveTo(cx - 5, cy - 22);
+  ctx.quadraticCurveTo(cx, cy - 17, cx + 5, cy - 22);
+  ctx.stroke();
+  // Centre seam
+  ctx.strokeStyle = 'rgba(0,0,0,0.18)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - 17);
+  ctx.lineTo(cx, cy + 14);
+  ctx.stroke();
+
+  // ── Front arm (right arm, in front of torso — lighter) ───────────────────
+  ctx.strokeStyle = '#3B82F6';
+  ctx.lineWidth = 7;
+  ctx.lineCap = 'round';
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.moveTo(cx + 12, cy - 16);
+  // cross-pattern: front arm goes forward when left/front leg goes forward
+  ctx.lineTo(cx + 12 + swing * 0.55, cy + 6);
+  ctx.stroke();
+  ctx.lineCap = 'butt';
+
+  // ── Neck ──────────────────────────────────────────────────────────────────
+  ctx.fillStyle = '#CC8860';
+  ctx.fillRect(cx - 4, cy - 28, 8, 8);
+
+  // ── Head (oval, slightly right-facing) ───────────────────────────────────
   ctx.fillStyle = C.playerHead;
   ctx.beginPath();
-  ctx.arc(cx, cy - 30, 14, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = 'rgba(255,255,255,0.10)';
-  ctx.beginPath();
-  ctx.arc(cx - 3, cy - 36, 8, Math.PI, 0);
+  ctx.ellipse(cx + 1, cy - 34, 13, 15, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // Hair
+  // Ear (near side, right profile)
+  ctx.fillStyle = '#E8A87C';
+  ctx.beginPath();
+  ctx.ellipse(cx + 12, cy - 33, 3.5, 5, 0.15, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Nose bump (subtle, right profile)
+  ctx.fillStyle = '#CC8860';
+  ctx.beginPath();
+  ctx.ellipse(cx + 13, cy - 34, 2.5, 2, -0.2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Mouth line
+  ctx.strokeStyle = '#A8663A';
+  ctx.lineWidth = 1.3;
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.moveTo(cx + 7, cy - 27);
+  ctx.bezierCurveTo(cx + 10, cy - 25.5, cx + 13, cy - 25.5, cx + 14, cy - 27);
+  ctx.stroke();
+
+  // ── Hair (short side-parted crop with volume) ─────────────────────────────
   ctx.fillStyle = C.playerHair;
   ctx.beginPath();
-  ctx.arc(cx, cy - 34, 14, Math.PI, Math.PI * 2);
+  ctx.moveTo(cx - 11, cy - 40);
+  ctx.lineTo(cx - 12, cy - 47);
+  ctx.bezierCurveTo(cx - 6, cy - 52, cx + 4, cy - 51, cx + 9, cy - 48);
+  ctx.bezierCurveTo(cx + 14, cy - 46, cx + 14, cy - 40, cx + 13, cy - 37);
+  ctx.bezierCurveTo(cx + 7,  cy - 35, cx - 2, cy - 36, cx - 11, cy - 40);
+  ctx.closePath();
   ctx.fill();
-  ctx.fillRect(cx - 14, cy - 48, 28, 14);
+  // Sheen highlight on crown
+  ctx.fillStyle = 'rgba(255,255,255,0.07)';
+  ctx.beginPath();
+  ctx.ellipse(cx - 1, cy - 47, 5, 2.5, -0.4, 0, Math.PI * 2);
+  ctx.fill();
 
-  // Left leg (swings forward on positive phase)
-  ctx.fillStyle = C.playerLegs;
-  ctx.fillRect(cx - 14 + swing, cy + 18, 12, 18);
-  // Right leg (opposite phase)
-  ctx.fillRect(cx + 2  - swing, cy + 18, 12, 18);
+  // ── Legs ──────────────────────────────────────────────────────────────────
+  // Back leg (right leg) — darker, behind
+  const backLegX  = cx + 2 - swing;
+  const backShinX = swing * 0.22;
+  ctx.fillStyle = '#162E6E';
+  ctx.fillRect(backLegX - 5, cy + 18, 11, 10);            // thigh
+  ctx.beginPath();                                          // shin with knee-bend angle
+  ctx.moveTo(backLegX - 4,           cy + 28);
+  ctx.lineTo(backLegX + 7,           cy + 28);
+  ctx.lineTo(backLegX + 6 + backShinX, cy + 38);
+  ctx.lineTo(backLegX - 5 + backShinX, cy + 38);
+  ctx.closePath();
+  ctx.fill();
 
-  // Left shoe
-  ctx.fillStyle = C.playerShoes;
-  ctx.fillRect(cx - 15 + swing, cy + 32, 14, 6);
-  // Right shoe
-  ctx.fillRect(cx + 1  - swing, cy + 32, 14, 6);
+  // Front leg (left leg) — lighter, nearer
+  const frontLegX  = cx - 14 + swing;
+  const frontShinX = swing * 0.22;
+  ctx.fillStyle = '#243F99';
+  ctx.fillRect(frontLegX - 1, cy + 18, 11, 10);           // thigh
+  ctx.beginPath();
+  ctx.moveTo(frontLegX - 2,             cy + 28);
+  ctx.lineTo(frontLegX + 9,             cy + 28);
+  ctx.lineTo(frontLegX + 8 - frontShinX, cy + 38);
+  ctx.lineTo(frontLegX - 3 - frontShinX, cy + 38);
+  ctx.closePath();
+  ctx.fill();
+
+  // ── Shoes (chunky sneakers) ───────────────────────────────────────────────
+  // Back shoe
+  const bsx = backLegX + backShinX;
+  ctx.fillStyle = '#2A2A2A';
+  ctx.fillRect(bsx - 5, cy + 33, 14, 4);            // upper
+  ctx.fillStyle = '#111111';
+  ctx.fillRect(bsx - 6, cy + 36, 16, 5);            // sole
+  ctx.fillStyle = 'rgba(255,255,255,0.38)';
+  ctx.fillRect(bsx - 6, cy + 40, 16, 1);            // sole stripe
+  ctx.fillStyle = '#111111';
+  ctx.beginPath();
+  ctx.ellipse(bsx + 9, cy + 38, 4, 2.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Front shoe
+  const fsx = frontLegX - frontShinX;
+  ctx.fillStyle = '#2A2A2A';
+  ctx.fillRect(fsx - 4, cy + 33, 14, 4);            // upper
+  ctx.fillStyle = '#111111';
+  ctx.fillRect(fsx - 5, cy + 36, 16, 5);            // sole
+  ctx.fillStyle = 'rgba(255,255,255,0.38)';
+  ctx.fillRect(fsx - 5, cy + 40, 16, 1);            // sole stripe
+  ctx.fillStyle = '#111111';
+  ctx.beginPath();
+  ctx.ellipse(fsx + 10, cy + 38, 4, 2.5, 0, 0, Math.PI * 2);
+  ctx.fill();
 
   ctx.globalAlpha = 1;
 }
@@ -403,6 +385,11 @@ function playSound(type) {
     noteAt('sine', 784, 0.3, 0.28, 0.12);
   } else if (type === 'click') {
     note('square', 400, 0.2, 0.04);
+  } else if (type === 'win') {
+    noteAt('sine', 523,  0.3, 0,    0.12);
+    noteAt('sine', 659,  0.3, 0.14, 0.12);
+    noteAt('sine', 784,  0.3, 0.28, 0.12);
+    noteAt('sine', 1046, 0.3, 0.42, 0.16);
   }
 }
 
@@ -410,101 +397,6 @@ function toggleMute() {
   muted = !muted;
   const btn = document.getElementById('mute-btn');
   if (btn) btn.textContent = muted ? '🔇' : '🔊';
-  if (audioCtx && musicGain) {
-    musicGain.gain.setTargetAtTime(muted ? 0 : 0.12, audioCtx.currentTime, 0.02);
-  }
-}
-
-// ── Background Music ──────────────────────────────────────────────────────────
-let musicGain       = null;
-let musicBeat       = 0;
-let musicStep       = 0;
-let nextBeatTime    = 0;
-let nextStepTime    = 0;
-let musicIntervalId = null;
-
-const BEAT_S         = 60 / 128;
-const LOOK_AHEAD     = 0.1;
-const SCHED_INTERVAL = 25;
-
-const BASS_NOTES = ['A2','A2','C3','C3','F2','F2','G2','G2'];
-const LEAD_NOTES = ['A4','C5','E5','C5','C5','E5','G5','E5','F4','A4','C5','A4','G4','B4','D5','B4'];
-
-function noteFreq(name) {
-  const semis = { C:0, D:2, E:4, F:5, G:7, A:9, B:11 };
-  const m = name.match(/^([A-G])(#?)(\d)$/);
-  if (!m) return 440;
-  const midi = (parseInt(m[3]) + 1) * 12 + semis[m[1]] + (m[2] ? 1 : 0);
-  return 440 * Math.pow(2, (midi - 69) / 12);
-}
-
-function schedBass(noteName, t) {
-  const osc  = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
-  osc.connect(gain);
-  gain.connect(musicGain);
-  osc.type = 'triangle';
-  osc.frequency.setValueAtTime(noteFreq(noteName), t);
-  gain.gain.setValueAtTime(0,   t);
-  gain.gain.linearRampToValueAtTime(1,   t + 0.005);
-  gain.gain.linearRampToValueAtTime(0.4, t + 0.06);
-  gain.gain.linearRampToValueAtTime(0,   t + BEAT_S * 0.85);
-  osc.start(t);
-  osc.stop(t + BEAT_S);
-}
-
-function schedLead(noteName, t) {
-  const osc  = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
-  osc.connect(gain);
-  gain.connect(musicGain);
-  osc.type = 'square';
-  const dur = BEAT_S / 2;
-  osc.frequency.setValueAtTime(noteFreq(noteName), t);
-  gain.gain.setValueAtTime(0, t);
-  gain.gain.linearRampToValueAtTime(1,   t + 0.005);
-  gain.gain.linearRampToValueAtTime(0,   t + dur * 0.45);
-  osc.start(t);
-  osc.stop(t + dur);
-}
-
-function musicSchedulerTick() {
-  if (!audioCtx || gameState !== 'PLAYING') return;
-  const now = audioCtx.currentTime;
-  if (nextBeatTime < now) nextBeatTime = now;
-  if (nextStepTime < now) nextStepTime = now;
-  while (nextBeatTime < now + LOOK_AHEAD) {
-    schedBass(BASS_NOTES[musicBeat % 8], nextBeatTime);
-    musicBeat++;
-    nextBeatTime += BEAT_S;
-  }
-  while (nextStepTime < now + LOOK_AHEAD) {
-    schedLead(LEAD_NOTES[musicStep % 16], nextStepTime);
-    musicStep++;
-    nextStepTime += BEAT_S / 2;
-  }
-}
-
-function startMusic() {
-  if (!audioCtx) return;
-  stopMusic();
-  if (!musicGain) {
-    musicGain = audioCtx.createGain();
-    musicGain.gain.setValueAtTime(muted ? 0 : 0.12, audioCtx.currentTime);
-    musicGain.connect(audioCtx.destination);
-  }
-  musicBeat    = 0;
-  musicStep    = 0;
-  nextBeatTime = audioCtx.currentTime;
-  nextStepTime = audioCtx.currentTime;
-  musicIntervalId = setInterval(musicSchedulerTick, SCHED_INTERVAL);
-}
-
-function stopMusic() {
-  if (musicIntervalId !== null) {
-    clearInterval(musicIntervalId);
-    musicIntervalId = null;
-  }
 }
 
 document.addEventListener('click', initAudio, { once: true });
@@ -535,7 +427,7 @@ window.addEventListener('keydown', (e) => {
     if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') gameState = 'PLAYING';
   } else if (gameState === 'TITLE') {
     if (e.key === ' ' || e.key === 'Enter') startGame();
-  } else if (gameState === 'GAMEOVER') {
+  } else if (gameState === 'GAMEOVER' || gameState === 'WIN') {
     if (e.key === ' ' || e.key === 'Enter') goToTitle();
   }
 });
@@ -561,28 +453,29 @@ function drawTextbook(x, cy) {
 
   drawSpriteShadow(ox + w / 2, oy + h / 2, 30, 7);
 
-  ctx.fillStyle = '#F5F0E8';
-  ctx.fillRect(ox, oy, w, h);
+  // Deep red hardcover (rounded)
+  ctx.fillStyle = '#B91C1C';
+  roundRect(ox, oy, w, h, 3);
+  ctx.fill();
 
-  // Spine strip
-  ctx.fillStyle = '#2C1A0E';
-  ctx.fillRect(ox, oy, 6, h);
+  // Darker spine strip on left
+  ctx.fillStyle = '#7F1D1D';
+  roundRect(ox, oy, 9, h, 3);
+  ctx.fill();
+  ctx.fillRect(ox + 4, oy, 5, h); // square off the right side of the spine
 
-  // Page-edge lines
-  ctx.strokeStyle = '#C8BFA8';
-  ctx.lineWidth = 1;
-  ctx.setLineDash([]);
-  for (let i = 1; i <= 3; i++) {
-    const ly = oy + (h / 4) * i;
-    ctx.beginPath();
-    ctx.moveTo(ox + 8, ly);
-    ctx.lineTo(ox + w - 2, ly);
-    ctx.stroke();
-  }
+  // Cream title label
+  ctx.fillStyle = '#FEF9EE';
+  ctx.fillRect(ox + 13, oy + 5, 38, h - 10);
+
+  // Cream page-edge stripe on right
+  ctx.fillStyle = '#EDE8D0';
+  ctx.fillRect(ox + w - 6, oy + 2, 4, h - 4);
 
   // Top highlight
-  ctx.fillStyle = 'rgba(255,255,255,0.18)';
-  ctx.fillRect(ox + 7, oy, w - 7, 4);
+  ctx.fillStyle = 'rgba(255,255,255,0.14)';
+  roundRect(ox, oy, w, 6, 3);
+  ctx.fill();
 }
 
 function drawBackpack(x, cy) {
@@ -591,34 +484,54 @@ function drawBackpack(x, cy) {
 
   drawSpriteShadow(ox + w / 2, oy + h / 2, 22, 7);
 
-  // Body
-  ctx.fillStyle = '#7C3AED';
-  roundRect(ox, oy + 8, w, h - 8, 6);
+  // Body — blue with darker-bottom gradient
+  ctx.fillStyle = '#2563EB';
+  roundRect(ox, oy + 8, w, h - 8, 8);
   ctx.fill();
-  ctx.fillStyle = 'rgba(255,255,255,0.13)';
-  roundRect(ox, oy + 8, w, 9, 6);
+  const bodyGrad = ctx.createLinearGradient(0, oy + h / 2, 0, oy + h);
+  bodyGrad.addColorStop(0, 'rgba(0,0,0,0)');
+  bodyGrad.addColorStop(1, 'rgba(0,0,0,0.28)');
+  ctx.fillStyle = bodyGrad;
+  roundRect(ox, oy + 8, w, h - 8, 8);
   ctx.fill();
 
-  // Strap lines
-  ctx.strokeStyle = '#5B21B6';
+  // Top handle loop
+  ctx.strokeStyle = '#1D4ED8';
   ctx.lineWidth = 3;
   ctx.setLineDash([]);
   ctx.beginPath();
-  ctx.moveTo(ox + 14, oy + 8);
-  ctx.lineTo(ox + 14, oy);
+  ctx.arc(ox + w / 2, oy + 8, 7, Math.PI, 0);
+  ctx.stroke();
+
+  // Shoulder straps
+  ctx.strokeStyle = '#1E40AF';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(ox + 13, oy + 8);
+  ctx.lineTo(ox + 8, oy + h - 12);
   ctx.stroke();
   ctx.beginPath();
-  ctx.moveTo(ox + w - 14, oy + 8);
-  ctx.lineTo(ox + w - 14, oy);
+  ctx.moveTo(ox + w - 13, oy + 8);
+  ctx.lineTo(ox + w - 8, oy + h - 12);
   ctx.stroke();
 
   // Front pocket
-  ctx.fillStyle = '#6D28D9';
-  roundRect(ox + 8, oy + h - 28, w - 16, 18, 4);
+  ctx.fillStyle = '#1D4ED8';
+  roundRect(ox + 8, oy + h - 26, w - 16, 18, 5);
   ctx.fill();
-  ctx.strokeStyle = '#5B21B6';
+
+  // Zipper line on pocket
+  ctx.strokeStyle = '#93C5FD';
   ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(ox + 10, oy + h - 17);
+  ctx.lineTo(ox + w - 10, oy + h - 17);
   ctx.stroke();
+
+  // Top highlight
+  ctx.fillStyle = 'rgba(255,255,255,0.15)';
+  roundRect(ox, oy + 8, w, 9, 8);
+  ctx.fill();
 }
 
 function drawJanitorCart(x, cy) {
@@ -627,29 +540,55 @@ function drawJanitorCart(x, cy) {
 
   drawSpriteShadow(ox + w / 2, oy + h / 2 + 10, 38, 8);
 
-  // Body
-  ctx.fillStyle = '#8D9EAE';
-  ctx.fillRect(ox, oy, w, h);
-  ctx.fillStyle = 'rgba(255,255,255,0.14)';
-  ctx.fillRect(ox, oy, w, 5);
-
-  // Mop handle
-  ctx.strokeStyle = '#6B7A87';
-  ctx.lineWidth = 3;
+  // Mop handle (drawn behind bucket)
+  ctx.strokeStyle = '#92400E';
+  ctx.lineWidth = 4;
   ctx.setLineDash([]);
   ctx.beginPath();
-  ctx.moveTo(ox + w / 2, oy);
-  ctx.lineTo(ox + w / 2, oy - 30);
+  ctx.moveTo(ox + w * 0.65, oy + 5);
+  ctx.lineTo(ox + w * 0.65, oy - 30);
   ctx.stroke();
 
-  // Wheels
-  ctx.fillStyle = '#4A5568';
+  // Yellow bucket — trapezoid (slightly wider at bottom)
+  ctx.fillStyle = '#FACC15';
   ctx.beginPath();
-  ctx.arc(ox + 14, oy + h - 8, 8, 0, Math.PI * 2);
+  ctx.moveTo(ox + 8,      oy);
+  ctx.lineTo(ox + w - 8,  oy);
+  ctx.lineTo(ox + w - 2,  oy + h - 16);
+  ctx.lineTo(ox + 2,      oy + h - 16);
+  ctx.closePath();
   ctx.fill();
+
+  // Bucket top-edge highlight
+  ctx.fillStyle = 'rgba(255,255,255,0.18)';
   ctx.beginPath();
-  ctx.arc(ox + w - 14, oy + h - 8, 8, 0, Math.PI * 2);
+  ctx.moveTo(ox + 8,      oy);
+  ctx.lineTo(ox + w - 8,  oy);
+  ctx.lineTo(ox + w - 10, oy + 10);
+  ctx.lineTo(ox + 10,     oy + 10);
+  ctx.closePath();
   ctx.fill();
+
+  // Gray wringer block on top of bucket
+  ctx.fillStyle = '#6B7280';
+  roundRect(ox + 16, oy - 7, w - 32, 10, 3);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.15)';
+  roundRect(ox + 16, oy - 7, w - 32, 4, 3);
+  ctx.fill();
+
+  // Wheels — dark body with lighter hub
+  for (const wx of [ox + 12, ox + w - 12]) {
+    const wy = oy + h - 8;
+    ctx.fillStyle = '#374151';
+    ctx.beginPath();
+    ctx.arc(wx, wy, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#9CA3AF';
+    ctx.beginPath();
+    ctx.arc(wx, wy, 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
 }
 
 function drawDodgeball(x, cy) {
@@ -658,13 +597,16 @@ function drawDodgeball(x, cy) {
 
   drawSpriteShadow(cx, cy + r, r, 5);
 
-  // Ball body
-  ctx.fillStyle = '#F97316';
+  // 3D radial gradient: lighter top-left → darker red-orange at edges
+  const grad = ctx.createRadialGradient(cx - 5, cy - 5, 2, cx, cy, r);
+  grad.addColorStop(0, '#FB923C');
+  grad.addColorStop(1, '#EA580C');
+  ctx.fillStyle = grad;
   ctx.beginPath();
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
   ctx.fill();
 
-  // Seam lines clipped to ball
+  // Curved seam lines clipped to ball
   ctx.save();
   ctx.beginPath();
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
@@ -683,9 +625,9 @@ function drawDodgeball(x, cy) {
   ctx.restore();
 
   // White highlight
-  ctx.fillStyle = 'rgba(255,255,255,0.45)';
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
   ctx.beginPath();
-  ctx.arc(cx - 4, cy - 5, 4, 0, Math.PI * 2);
+  ctx.arc(cx - 5, cy - 5, 4, 0, Math.PI * 2);
   ctx.fill();
 }
 
@@ -705,14 +647,14 @@ function spawnObstacle() {
 
   const roll = Math.random();
   let type, speedMult;
-  if (score < 20) {
+  if (score < 10) {
     if (roll < 0.40)      { type = 'backpack';    speedMult = 1.0;  }
     else if (roll < 0.75) { type = 'textbook';    speedMult = 1.3;  }
     else                  { type = 'janitorCart'; speedMult = 0.75; }
   } else {
-    if (roll < 0.32)      { type = 'backpack';    speedMult = 1.0;  }
+    if (roll < 0.30)      { type = 'backpack';    speedMult = 1.0;  }
     else if (roll < 0.60) { type = 'textbook';    speedMult = 1.3;  }
-    else if (roll < 0.80) { type = 'janitorCart'; speedMult = 0.75; }
+    else if (roll < 0.78) { type = 'janitorCart'; speedMult = 0.75; }
     else                  { type = 'dodgeball';   speedMult = 1.4;  }
   }
 
@@ -776,9 +718,8 @@ function checkCollisions() {
 }
 
 // ── Fluorescent Light Pools ───────────────────────────────────────────────────
-const TICK_SPACING = 80;   // kept for tickOffset scroll math
-const TICK_SPEED   = 320;
-let tickOffset = 0;
+const TICK_SPEED = 320;
+let tickOffset   = 0;
 
 function drawFloorTicks() {
   const POOL_GAP = 220;
@@ -787,7 +728,7 @@ function drawFloorTicks() {
     for (let lane = 0; lane < 3; lane++) {
       const lcy  = LANE_CY[lane];
       const grad = ctx.createRadialGradient(x, lcy - 20, 0, x, lcy - 20, 95);
-      grad.addColorStop(0, 'rgba(255, 248, 220, 0.07)');
+      grad.addColorStop(0, 'rgba(255, 246, 224, 0.06)');
       grad.addColorStop(1, 'rgba(255, 248, 220, 0)');
       ctx.fillStyle = grad;
       ctx.beginPath();
@@ -800,17 +741,23 @@ function drawFloorTicks() {
 // ── Update ────────────────────────────────────────────────────────────────────
 function update(dt) {
   score += dt;
-  spawnInterval = Math.max(0.48, 1.40 - 0.024 * score);
-  baseSpeed     = Math.min(700, 340 + 9 * score);
+
+  if (score >= WIN_TIME) {
+    score = WIN_TIME;
+    triggerWin();
+    return;
+  }
+
+  spawnInterval = Math.max(0.40, 1.05 - 0.011 * score);
+  baseSpeed     = Math.min(820, 460 + 6.5 * score);
 
   const scoreEl = document.getElementById('score-display');
   const bestEl  = document.getElementById('best-display');
-  if (scoreEl) scoreEl.textContent = Math.floor(score) + 's';
+  if (scoreEl) scoreEl.textContent = Math.floor(score) + 's / 60s';
   if (bestEl)  bestEl.textContent  = 'Best: ' + Math.floor(bestScore) + 's';
 
   player.y += (player.targetY - player.y) * (1 - Math.pow(0.01, dt * 10));
   tickOffset += TICK_SPEED * dt;
-  wallOffset += baseSpeed * 0.45 * dt;
   runTimer   += dt;
 
   for (const obs of obstacles) obs.x -= obs.speed * dt;
@@ -895,7 +842,7 @@ function buildTitleScreen() {
   if (!el) return;
   el.innerHTML = `
     <h1 style="color:#34D399;font-size:3rem;margin:0 0 4px">Hallway Dash</h1>
-    <p style="color:#94A3B8;margin:0 0 4px">Dodge everything. Get to class.</p>
+    <p style="color:#94A3B8;margin:0 0 4px">Survive 60 seconds to reach class.</p>
     <p style="color:#64748B;font-size:0.9rem;margin:0 0 20px">&#8593; &#8595; &nbsp; or &nbsp; W S &nbsp; to change lanes</p>
     <p style="color:#94A3B8;margin:0 0 28px">Best: <span style="color:#34D399;font-weight:600">${Math.floor(bestScore)}s</span></p>
     <button id="start-btn" style="padding:12px 44px;font-size:1.1rem;font-weight:700;background:#34D399;color:#0F1624;border:none;border-radius:8px;cursor:pointer;letter-spacing:0.05em">START</button>
@@ -915,8 +862,8 @@ function startGame() {
   shakeTimer    = 0;
   shakeX        = 0;
   shakeY        = 0;
-  baseSpeed     = 340;
-  spawnInterval = 1.4;
+  baseSpeed     = 460;
+  spawnInterval = 1.05;
   inputLocked   = false;
   lastMilestone = 0;
   player.laneIndex = 1;
@@ -924,17 +871,35 @@ function startGame() {
   player.targetY   = LANE_CY[1];
   updateLivesHUD();
   const scoreEl = document.getElementById('score-display');
-  if (scoreEl) scoreEl.textContent = '0s';
+  if (scoreEl) scoreEl.textContent = '0s / 60s';
   const ts = document.getElementById('title-screen');
   if (ts) ts.classList.add('hidden');
   gameState = 'PLAYING';
   playSound('start');
-  startMusic();
+}
+
+function triggerWin() {
+  gameState = 'WIN';
+  playSound('win');
+  if (score > bestScore) {
+    bestScore = score;
+    localStorage.setItem('hallwayDashBest', String(bestScore));
+  }
+  const scoreEl = document.getElementById('score-display');
+  if (scoreEl) scoreEl.textContent = '60s / 60s';
+  const el = document.getElementById('gameover-screen');
+  if (!el) return;
+  el.innerHTML = `
+    <h1 style="color:#34D399;font-size:2.5rem;margin:0 0 8px">You made it to class!</h1>
+    <p style="font-size:1.1rem;color:#F4F6FB;margin:0 0 28px">Survived the full 60 seconds</p>
+    <button id="restart-btn" style="padding:12px 44px;font-size:1.1rem;font-weight:700;background:#34D399;color:#0F1624;border:none;border-radius:8px;cursor:pointer;letter-spacing:0.05em">PLAY AGAIN</button>
+  `;
+  el.classList.remove('hidden');
+  document.getElementById('restart-btn').addEventListener('click', () => { playSound('click'); goToTitle(); });
 }
 
 function triggerGameOver() {
   gameState = 'GAMEOVER';
-  stopMusic();
   playSound('gameover');
   let isNewBest = false;
   if (score > bestScore) {
@@ -958,7 +923,6 @@ function triggerGameOver() {
 }
 
 function goToTitle() {
-  stopMusic();
   const go = document.getElementById('gameover-screen');
   if (go) go.classList.add('hidden');
   buildTitleScreen();

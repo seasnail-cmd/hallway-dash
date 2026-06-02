@@ -27,7 +27,7 @@ body {
   top: 0;
   left: 0;
   right: 0;
-  height: 60px;
+  height: 78px;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -38,18 +38,18 @@ body {
 
 #score-display {
   color: #F4F6FB;
-  font-size: 18px;
+  font-size: 22px;
   font-weight: 600;
 }
 
 #lives-display {
-  font-size: 20px;
-  letter-spacing: 6px;
+  font-size: 24px;
+  letter-spacing: 8px;
 }
 
 #best-display {
   color: #34D399;
-  font-size: 16px;
+  font-size: 19px;
   font-weight: 500;
 }
 
@@ -71,7 +71,7 @@ body {
 #mute-btn {
   border: none;
   background: transparent;
-  font-size: 18px;
+  font-size: 22px;
   cursor: pointer;
   color: #F4F6FB;
   padding: 0;
